@@ -1,0 +1,402 @@
+// Store for the current editing prompt if any
+let currentEditingId = null;
+const defaultPrompts = [
+  {
+    id: '1',
+    title: '礼貌问候',
+    content: '您好，希望这条消息能够顺利送达。'
+  },
+  {
+    id: '2',
+    title: '会议请求',
+    content: '我想安排一次会议进一步讨论这个问题。请告知您的可用时间。'
+  },
+  {
+    id: '3',
+    title: '感谢信',
+    content: '感谢您的帮助。我非常感谢您在这件事上给予的支持。'
+  }
+];
+
+// DOM Elements
+const promptListElement = document.getElementById('promptList');
+const promptTitleInput = document.getElementById('promptTitle');
+const promptContentInput = document.getElementById('promptContent');
+const savePromptButton = document.getElementById('savePrompt');
+const cancelEditButton = document.getElementById('cancelEdit');
+const jsonFileInput = document.getElementById('jsonFileInput');
+const importButton = document.getElementById('importButton');
+const exportButton = document.getElementById('exportButton');
+const importMessage = document.getElementById('importMessage');
+
+// Initialize prompts when popup opens
+document.addEventListener('DOMContentLoaded', () => {
+  loadPrompts();
+  
+  // Add icons to bottom buttons
+  initButtonIcons();
+  
+  // Event listeners
+  savePromptButton.addEventListener('click', savePrompt);
+  cancelEditButton.addEventListener('click', cancelEdit);
+  
+  // Updated import functionality
+  // Clicking on import button opens the file dialog
+  importButton.addEventListener('click', () => {
+    jsonFileInput.click();
+  });
+  
+  // When a file is selected, automatically import it
+  jsonFileInput.addEventListener('change', (event) => {
+    if (event.target.files.length > 0) {
+      importFromJson(event.target.files[0]);
+    }
+  });
+  
+  // Export functionality
+  exportButton.addEventListener('click', exportToJson);
+});
+
+// Initialize button icons
+function initButtonIcons() {
+  // Add plus icon to save/add button
+  savePromptButton.appendChild(createSVGIcon('add'));
+  
+  // Add brush icon to cancel/clear button
+  cancelEditButton.appendChild(createSVGIcon('clear'));
+  
+  // Add import icon
+  importButton.appendChild(createSVGIcon('import'));
+  
+  // Add export icon
+  exportButton.appendChild(createSVGIcon('export'));
+}
+
+// Load prompts from storage
+function loadPrompts() {
+  chrome.storage.sync.get('prompts', (result) => {
+    let prompts = result.prompts;
+    
+    // If no prompts in storage, use default prompts
+    if (!prompts || prompts.length === 0) {
+      prompts = defaultPrompts;
+      chrome.storage.sync.set({ prompts: defaultPrompts });
+    }
+    
+    displayPrompts(prompts);
+  });
+}
+
+// Create SVG icon elements
+function createSVGIcon(type) {
+  const svgNS = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(svgNS, "svg");
+  svg.setAttribute("class", "icon");
+  svg.setAttribute("viewBox", "0 0 24 24");
+  
+  const path = document.createElementNS(svgNS, "path");
+  
+  switch(type) {
+    case 'copy':
+      path.setAttribute("d", "M16 1H4C2.9 1 2 1.9 2 3v14h2V3h12V1zm3 4H8C6.9 5 6 5.9 6 7v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z");
+      break;
+    case 'delete':
+      path.setAttribute("d", "M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z");
+      break;
+    case 'add':
+      path.setAttribute("d", "M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z");
+      break;
+    case 'save':
+      path.setAttribute("d", "M17 3H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z");
+      break;
+    case 'clear':
+      path.setAttribute("d", "M7 14c-1.66 0-3 1.34-3 3 0 1.31-1.16 2-2 2 .92 1.22 2.49 2 4 2 2.21 0 4-1.79 4-4 0-1.66-1.34-3-3-3zm13.71-9.37l-1.34-1.34a.9959.9959 0 00-1.41 0L9 12.25 11.75 15l8.96-8.96c.39-.39.39-1.02 0-1.41z");
+      break;
+    case 'import':
+      path.setAttribute("d", "M9 16h6v-6h4l-7-7-7 7h4zm-4 2h14v2H5z");
+      break;
+    case 'export':
+      path.setAttribute("d", "M19 12v7H5v-7H3v7c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2v-7h-2zm-6 .67l2.59-2.58L17 11.5l-5 5-5-5 1.41-1.41L11 12.67V3h2z");
+      break;
+  }
+  
+  svg.appendChild(path);
+  return svg;
+}
+
+// Display prompts in the list
+function displayPrompts(prompts) {
+  promptListElement.innerHTML = '';
+  
+  prompts.forEach(prompt => {
+    const promptItem = document.createElement('div');
+    promptItem.className = 'prompt-item';
+    
+    const promptTitle = document.createElement('div');
+    promptTitle.className = 'prompt-title';
+    promptTitle.textContent = prompt.title;
+    promptTitle.title = prompt.title; // Add tooltip for long titles
+    
+    // Make the entire title clickable for editing
+    promptTitle.addEventListener('click', () => {
+      editPrompt(prompt);
+    });
+    
+    const promptActions = document.createElement('div');
+    promptActions.className = 'prompt-actions';
+    
+    const copyButton = document.createElement('button');
+    copyButton.className = 'btn btn-copy';
+    copyButton.title = '复制';
+    
+    // Add copy icon
+    copyButton.appendChild(createSVGIcon('copy'));
+    
+    copyButton.addEventListener('click', (e) => {
+      e.stopPropagation();
+      copyToClipboard(prompt.content, copyButton);
+    });
+    
+    const deleteButton = document.createElement('button');
+    deleteButton.className = 'btn btn-danger';
+    deleteButton.title = '删除';
+    
+    // Add delete icon
+    deleteButton.appendChild(createSVGIcon('delete'));
+    
+    deleteButton.addEventListener('click', (e) => {
+      e.stopPropagation();
+      deletePrompt(prompt.id);
+    });
+    
+    promptActions.appendChild(copyButton);
+    promptActions.appendChild(deleteButton);
+    
+    promptItem.appendChild(promptTitle);
+    promptItem.appendChild(promptActions);
+    
+    promptListElement.appendChild(promptItem);
+  });
+}
+
+// Export prompts to JSON file
+function exportToJson() {
+  chrome.storage.sync.get('prompts', (result) => {
+    const prompts = result.prompts || [];
+    const jsonString = JSON.stringify(prompts, null, 2);
+    const blob = new Blob([jsonString], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'prompts.json';
+    a.click();
+
+    URL.revokeObjectURL(url); // Clean up the URL object
+  });
+}
+
+// Import prompts from JSON file
+function importFromJson(file) {
+  if (!file) {
+    return;
+  }
+  
+  const reader = new FileReader();
+  
+  reader.onload = function(e) {
+    try {
+      const jsonData = JSON.parse(e.target.result);
+      
+      // Check if the JSON is valid for import
+      if (!Array.isArray(jsonData) && !isValidPromptObject(jsonData)) {
+        alert('无效的JSON格式。请确保JSON包含title和content字段，或者是这样的数组。');
+        return;
+      }
+      
+      // Process the JSON data based on its format
+      let newPrompts = [];
+      
+      if (Array.isArray(jsonData)) {
+        // Array of prompt objects
+        newPrompts = jsonData.filter(item => isValidPromptItem(item))
+          .map(item => {
+            return {
+              id: Date.now() + '-' + Math.random().toString(36).substr(2, 9),
+              title: item.title,
+              content: item.content
+            };
+          });
+      } else {
+        // Single object with title-content pairs
+        newPrompts = Object.entries(jsonData).map(([title, content]) => {
+          return {
+            id: Date.now() + '-' + Math.random().toString(36).substr(2, 9),
+            title,
+            content
+          };
+        });
+      }
+      
+      if (newPrompts.length === 0) {
+        alert('未找到有效的提示词');
+        return;
+      }
+      
+      // Add the new prompts to existing ones
+      chrome.storage.sync.get('prompts', (result) => {
+        let prompts = result.prompts || [];
+        prompts = [...prompts, ...newPrompts];
+        
+        chrome.storage.sync.set({ prompts }, () => {
+          displayPrompts(prompts);
+          
+          // Show success message
+          importMessage.style.display = 'block';
+          setTimeout(() => {
+            importMessage.style.display = 'none';
+          }, 3000);
+          
+          // Clear the file input
+          jsonFileInput.value = '';
+        });
+      });
+      
+    } catch (error) {
+      alert('解析JSON文件时出错: ' + error.message);
+    }
+  };
+  
+  reader.onerror = function() {
+    alert('读取文件时出错');
+  };
+  
+  reader.readAsText(file);
+}
+
+// Check if an object is a valid prompt item
+function isValidPromptItem(item) {
+  return item && typeof item === 'object' && 
+         item.title && typeof item.title === 'string' && 
+         item.content && typeof item.content === 'string';
+}
+
+// Check if an object is a valid prompt object (title-content pairs)
+function isValidPromptObject(obj) {
+  return obj && typeof obj === 'object' && 
+         Object.entries(obj).length > 0 && 
+         Object.entries(obj).every(([key, value]) => 
+           typeof key === 'string' && typeof value === 'string');
+}
+
+// Insert prompt into active tab
+function insertPrompt(content) {
+  // Try to insert into active tab
+  chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+    chrome.tabs.sendMessage(
+      tabs[0].id,
+      { action: 'insertPrompt', content: content },
+      (response) => {
+        // If insertion failed or no response, copy to clipboard instead
+        if (!response || !response.success) {
+          copyToClipboard(content);
+        }
+      }
+    );
+  });
+}
+
+// Copy content to clipboard
+function copyToClipboard(content, button = null) {
+  navigator.clipboard.writeText(content)
+    .then(() => {
+      if (button) {
+        // For icon button, we'll change the background color briefly
+        const originalBackground = button.style.backgroundColor;
+        button.style.backgroundColor = '#3a9d3a';
+        button.disabled = true;
+        
+        // Reset button after 1.5 seconds
+        setTimeout(() => {
+          button.style.backgroundColor = originalBackground;
+          button.disabled = false;
+        }, 1500);
+      }
+    })
+    .catch(err => {
+      console.error('复制失败: ', err);
+    });
+}
+
+// Start editing a prompt
+function editPrompt(prompt) {
+  currentEditingId = prompt.id;
+  promptTitleInput.value = prompt.title;
+  promptContentInput.value = prompt.content;
+  
+  // Change add button to save button icon
+  savePromptButton.innerHTML = '';
+  savePromptButton.appendChild(createSVGIcon('save'));
+  savePromptButton.title = '保存';
+}
+
+// Save new or edited prompt
+function savePrompt() {
+  const title = promptTitleInput.value.trim();
+  const content = promptContentInput.value.trim();
+  
+  if (!title || !content) {
+    alert('请输入标题和内容');
+    return;
+  }
+  
+  chrome.storage.sync.get('prompts', (result) => {
+    let prompts = result.prompts || defaultPrompts;
+    
+    if (currentEditingId) {
+      // Update existing prompt
+      const index = prompts.findIndex(p => p.id === currentEditingId);
+      if (index !== -1) {
+        prompts[index] = { id: currentEditingId, title, content };
+      }
+    } else {
+      // Add new prompt
+      const newId = Date.now().toString();
+      prompts.push({ id: newId, title, content });
+    }
+    
+    chrome.storage.sync.set({ prompts: prompts }, () => {
+      displayPrompts(prompts);
+      cancelEdit();
+    });
+  });
+}
+
+// Cancel editing
+function cancelEdit() {
+  currentEditingId = null;
+  promptTitleInput.value = '';
+  promptContentInput.value = '';
+  
+  // Reset to add button icon
+  savePromptButton.innerHTML = '';
+  savePromptButton.appendChild(createSVGIcon('add'));
+  savePromptButton.title = '新增';
+}
+
+// Delete a prompt
+function deletePrompt(id) {
+  chrome.storage.sync.get('prompts', (result) => {
+    let prompts = result.prompts || [];
+    const newPrompts = prompts.filter(prompt => prompt.id !== id);
+    
+    chrome.storage.sync.set({ prompts: newPrompts }, () => {
+      displayPrompts(newPrompts);
+      
+      // If currently editing this prompt, cancel edit
+      if (currentEditingId === id) {
+        cancelEdit();
+      }
+    });
+  });
+} 
