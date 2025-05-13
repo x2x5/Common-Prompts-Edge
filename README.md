@@ -2,6 +2,7 @@
 
 A browser extension for Microsoft Edge that allows you to quickly insert predefined text prompts into input fields on webpages.
 
+![show](./show.png)
 ## Features
 
 - Store and manage a list of commonly used text prompts
