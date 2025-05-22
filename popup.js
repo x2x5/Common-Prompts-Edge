@@ -71,8 +71,21 @@ document.addEventListener('DOMContentLoaded', () => {
   
   // URL modal buttons
   loadUrlButton.addEventListener('click', () => {
-    const url = jsonUrlInput.value.trim();
+    let url = jsonUrlInput.value.trim();
     if (url) {
+      // 自动转换GitHub URL为raw URL
+      const originalUrl = url;
+      url = convertToRawGitHubUrl(url);
+      
+      // 如果URL被转换，显示通知
+      if (url !== originalUrl) {
+        // 保存转换后的URL到输入框，方便用户查看
+        jsonUrlInput.value = url;
+        
+        // 显示已转换通知
+        alert(`URL已被自动转换为正确的raw格式:\n${url}`);
+      }
+      
       syncFromUrl(url);
       urlModal.style.display = 'none';
     } else {
@@ -546,4 +559,58 @@ function syncFromUrl(url) {
       syncButton.appendChild(createSVGIcon('sync'));
       syncButton.disabled = false;
     });
+}
+
+// 将GitHub URL转换为raw URL
+function convertToRawGitHubUrl(url) {
+  // 保存原始URL以便检测是否发生变化
+  const originalUrl = url;
+
+  // 检查是否已经是raw URL
+  if (url.includes('raw.githubusercontent.com')) {
+    return url;
+  }
+  
+  // 处理 @格式 (如 @https://github.com/...)
+  if (url.startsWith('@')) {
+    return convertToRawGitHubUrl(url.substring(1));
+  }
+  
+  // 转换 github.com/user/repo/blob/branch/path 格式
+  // 为 raw.githubusercontent.com/user/repo/branch/path
+  let rawUrl = url;
+  
+  // 匹配 github.com URL
+  const githubRegex = /^https?:\/\/github\.com\/([^\/]+)\/([^\/]+)\/(?:blob|tree)\/([^\/]+)\/(.+)$/;
+  const match = url.match(githubRegex);
+  
+  if (match) {
+    const [_, user, repo, branch, path] = match;
+    rawUrl = `https://raw.githubusercontent.com/${user}/${repo}/${branch}/${path}`;
+  }
+  
+  // 处理 refs/heads/ 格式
+  // 如果URL包含 refs/heads/ 保持不变
+  // 否则其他的 blob/ 或 tree/ 需要替换
+  if (!rawUrl.includes('/refs/heads/')) {
+    rawUrl = rawUrl.replace('/blob/', '/').replace('/tree/', '/');
+  }
+  
+  // 特殊检查 refs/heads/main 格式
+  if (url.includes('/refs/heads/main/')) {
+    const refsPattern = /^https?:\/\/raw\.githubusercontent\.com\/([^\/]+)\/([^\/]+)\/refs\/heads\/main\/(.+)$/;
+    const refsMatch = rawUrl.match(refsPattern);
+    
+    if (refsMatch) {
+      const [_, user, repo, path] = refsMatch;
+      rawUrl = `https://raw.githubusercontent.com/${user}/${repo}/main/${path}`;
+    }
+  }
+  
+  // 如果URL被转换了，显示一个短暂的通知
+  if (rawUrl !== originalUrl) {
+    console.log(`URL已转换: ${originalUrl} -> ${rawUrl}`);
+  }
+  
+  return rawUrl;
 } 
