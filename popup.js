@@ -29,6 +29,10 @@ const importButton = document.getElementById('importButton');
 const exportButton = document.getElementById('exportButton');
 const syncButton = document.getElementById('syncButton');
 const importMessage = document.getElementById('importMessage');
+const urlModal = document.getElementById('urlModal');
+const jsonUrlInput = document.getElementById('jsonUrl');
+const loadUrlButton = document.getElementById('loadUrlButton');
+const cancelUrlButton = document.getElementById('cancelUrlButton');
 
 // Initialize prompts when popup opens
 document.addEventListener('DOMContentLoaded', () => {
@@ -54,8 +58,38 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
   
-  // Sync functionality
-  syncButton.addEventListener('click', syncFromGithub);
+  // Sync functionality - Show URL input modal
+  syncButton.addEventListener('click', () => {
+    urlModal.style.display = 'block';
+    jsonUrlInput.focus();
+    
+    // 默认填充GitHub URL
+    if (!jsonUrlInput.value) {
+      jsonUrlInput.value = 'https://raw.githubusercontent.com/x2x5/Common-Prompts-Edge/main/sample_prompts.json';
+    }
+  });
+  
+  // URL modal buttons
+  loadUrlButton.addEventListener('click', () => {
+    const url = jsonUrlInput.value.trim();
+    if (url) {
+      syncFromUrl(url);
+      urlModal.style.display = 'none';
+    } else {
+      alert('请输入有效的URL');
+    }
+  });
+  
+  // 支持在URL输入框中按回车键
+  jsonUrlInput.addEventListener('keypress', (event) => {
+    if (event.key === 'Enter') {
+      loadUrlButton.click();
+    }
+  });
+  
+  cancelUrlButton.addEventListener('click', () => {
+    urlModal.style.display = 'none';
+  });
   
   // Export functionality
   exportButton.addEventListener('click', exportToJson);
@@ -422,11 +456,8 @@ function deletePrompt(id) {
   });
 }
 
-// Sync prompts from GitHub repository
-function syncFromGithub() {
-  // GitHub raw content URL
-  const githubRawUrl = 'https://raw.githubusercontent.com/x2x5/Common-Prompts-Edge/main/sample_prompts.json';
-  
+// Sync prompts from URL
+function syncFromUrl(url) {
   // Show a loading indicator on the button
   const originalIcon = syncButton.innerHTML;
   syncButton.disabled = true;
@@ -451,8 +482,8 @@ function syncFromGithub() {
   
   syncButton.appendChild(loadingIcon);
   
-  // Fetch the JSON data from GitHub
-  fetch(githubRawUrl)
+  // Fetch the JSON data from the provided URL
+  fetch(url)
     .then(response => {
       if (!response.ok) {
         throw new Error(`HTTP error! Status: ${response.status}`);
@@ -460,22 +491,36 @@ function syncFromGithub() {
       return response.json();
     })
     .then(data => {
-      if (!Array.isArray(data)) {
-        throw new Error('Invalid data format! Expected an array.');
+      if (!Array.isArray(data) && !isValidPromptObject(data)) {
+        throw new Error('无效的数据格式！');
       }
       
       // Process the fetched data
-      const newPrompts = data.filter(item => isValidPromptItem(item))
-        .map(item => {
+      let newPrompts = [];
+      
+      if (Array.isArray(data)) {
+        // Array of prompt objects
+        newPrompts = data.filter(item => isValidPromptItem(item))
+          .map(item => {
+            return {
+              id: Date.now() + '-' + Math.random().toString(36).substr(2, 9),
+              title: item.title,
+              content: item.content
+            };
+          });
+      } else {
+        // Single object with title-content pairs
+        newPrompts = Object.entries(data).map(([title, content]) => {
           return {
             id: Date.now() + '-' + Math.random().toString(36).substr(2, 9),
-            title: item.title,
-            content: item.content
+            title,
+            content
           };
         });
+      }
       
       if (newPrompts.length === 0) {
-        throw new Error('No valid prompts found in the synced data.');
+        throw new Error('未在同步的数据中找到有效的提示词。');
       }
       
       // Replace the existing prompts with the synced ones
@@ -492,7 +537,7 @@ function syncFromGithub() {
       });
     })
     .catch(error => {
-      console.error('Error syncing from GitHub:', error);
+      console.error('同步错误:', error);
       alert(`同步失败: ${error.message}`);
     })
     .finally(() => {
