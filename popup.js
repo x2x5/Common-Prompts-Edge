@@ -123,10 +123,13 @@ function createSVGIcon(type) {
       path.setAttribute("d", "M9 16h6v-6h4l-7-7-7 7h4zm-4 2h14v2H5z");
       break;
     case 'export':
-      path.setAttribute("d", "M19 12v7H5v-7H3v7c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2v-7h-2zm-6 .67l2.59-2.58L17 11.5l-5 5-5-5 1.41-1.41L11 12.67V3h2z");
+      path.setAttribute("d", "M17 3H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z");
       break;
     case 'sync':
-      path.setAttribute("d", "M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z");
+      path.setAttribute("d", "M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z");
+      break;
+    case 'edit':
+      path.setAttribute("d", "M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34a.9959.9959 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z");
       break;
   }
   
@@ -145,26 +148,34 @@ function displayPrompts(prompts) {
     const promptTitle = document.createElement('div');
     promptTitle.className = 'prompt-title';
     promptTitle.textContent = prompt.title;
-    promptTitle.title = prompt.title; // Add tooltip for long titles
+    promptTitle.title = `${prompt.title} (点击复制内容)`; // Add tooltip for long titles and copy hint
     
-    // Make the entire title clickable for editing
+    // Make the entire title clickable for copying
     promptTitle.addEventListener('click', () => {
-      editPrompt(prompt);
+      copyToClipboard(prompt.content);
+      
+      // Visual feedback for copy
+      const originalColor = promptTitle.style.color;
+      promptTitle.style.color = '#5cb85c';
+      
+      setTimeout(() => {
+        promptTitle.style.color = originalColor;
+      }, 1000);
     });
     
     const promptActions = document.createElement('div');
     promptActions.className = 'prompt-actions';
     
-    const copyButton = document.createElement('button');
-    copyButton.className = 'btn btn-copy';
-    copyButton.title = '复制';
+    const editButton = document.createElement('button');
+    editButton.className = 'btn btn-copy';
+    editButton.title = '编辑';
     
-    // Add copy icon
-    copyButton.appendChild(createSVGIcon('copy'));
+    // Add edit icon
+    editButton.appendChild(createSVGIcon('edit'));
     
-    copyButton.addEventListener('click', (e) => {
+    editButton.addEventListener('click', (e) => {
       e.stopPropagation();
-      copyToClipboard(prompt.content, copyButton);
+      editPrompt(prompt);
     });
     
     const deleteButton = document.createElement('button');
@@ -179,7 +190,7 @@ function displayPrompts(prompts) {
       deletePrompt(prompt.id);
     });
     
-    promptActions.appendChild(copyButton);
+    promptActions.appendChild(editButton);
     promptActions.appendChild(deleteButton);
     
     promptItem.appendChild(promptTitle);
