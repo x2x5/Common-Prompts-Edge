@@ -105,6 +105,10 @@
       background-color: #5bc0de;
       color: white;
     }
+    .sync-button {
+      background-color: #7952b3;
+      color: white;
+    }
     .import-message {
       color: #5cb85c;
       font-size: 12px;
@@ -162,6 +166,9 @@
           </button>
         </div>
         <div class="import-export-buttons">
+          <button id="syncButton" class="btn sync-button" title="同步">
+            <!-- 同步图标会在JS中添加 -->
+          </button>
           <input type="file" id="jsonFileInput" accept=".json">
           <button id="importButton" class="btn import-button" title="导入">
             <!-- 导入图标会在JS中添加 -->

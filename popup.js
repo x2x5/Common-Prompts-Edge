@@ -27,6 +27,7 @@ const cancelEditButton = document.getElementById('cancelEdit');
 const jsonFileInput = document.getElementById('jsonFileInput');
 const importButton = document.getElementById('importButton');
 const exportButton = document.getElementById('exportButton');
+const syncButton = document.getElementById('syncButton');
 const importMessage = document.getElementById('importMessage');
 
 // Initialize prompts when popup opens
@@ -53,6 +54,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
   
+  // Sync functionality
+  syncButton.addEventListener('click', syncFromGithub);
+  
   // Export functionality
   exportButton.addEventListener('click', exportToJson);
 });
@@ -64,6 +68,9 @@ function initButtonIcons() {
   
   // Add brush icon to cancel/clear button
   cancelEditButton.appendChild(createSVGIcon('clear'));
+  
+  // Add sync icon
+  syncButton.appendChild(createSVGIcon('sync'));
   
   // Add import icon
   importButton.appendChild(createSVGIcon('import'));
@@ -117,6 +124,9 @@ function createSVGIcon(type) {
       break;
     case 'export':
       path.setAttribute("d", "M19 12v7H5v-7H3v7c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2v-7h-2zm-6 .67l2.59-2.58L17 11.5l-5 5-5-5 1.41-1.41L11 12.67V3h2z");
+      break;
+    case 'sync':
+      path.setAttribute("d", "M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z");
       break;
   }
   
@@ -399,4 +409,85 @@ function deletePrompt(id) {
       }
     });
   });
+}
+
+// Sync prompts from GitHub repository
+function syncFromGithub() {
+  // GitHub raw content URL
+  const githubRawUrl = 'https://raw.githubusercontent.com/x2x5/Common-Prompts-Edge/main/sample_prompts.json';
+  
+  // Show a loading indicator on the button
+  const originalIcon = syncButton.innerHTML;
+  syncButton.disabled = true;
+  syncButton.innerHTML = '';
+  
+  // Create a loading icon (simple spinning animation)
+  const loadingIcon = document.createElement('div');
+  loadingIcon.style.width = '18px';
+  loadingIcon.style.height = '18px';
+  loadingIcon.style.border = '2px solid #f3f3f3';
+  loadingIcon.style.borderTop = '2px solid #ffffff';
+  loadingIcon.style.borderRadius = '50%';
+  loadingIcon.style.animation = 'spin 1s linear infinite';
+  
+  // Add CSS animation
+  if (!document.getElementById('spinAnimation')) {
+    const style = document.createElement('style');
+    style.id = 'spinAnimation';
+    style.textContent = '@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }';
+    document.head.appendChild(style);
+  }
+  
+  syncButton.appendChild(loadingIcon);
+  
+  // Fetch the JSON data from GitHub
+  fetch(githubRawUrl)
+    .then(response => {
+      if (!response.ok) {
+        throw new Error(`HTTP error! Status: ${response.status}`);
+      }
+      return response.json();
+    })
+    .then(data => {
+      if (!Array.isArray(data)) {
+        throw new Error('Invalid data format! Expected an array.');
+      }
+      
+      // Process the fetched data
+      const newPrompts = data.filter(item => isValidPromptItem(item))
+        .map(item => {
+          return {
+            id: Date.now() + '-' + Math.random().toString(36).substr(2, 9),
+            title: item.title,
+            content: item.content
+          };
+        });
+      
+      if (newPrompts.length === 0) {
+        throw new Error('No valid prompts found in the synced data.');
+      }
+      
+      // Replace the existing prompts with the synced ones
+      chrome.storage.sync.set({ prompts: newPrompts }, () => {
+        displayPrompts(newPrompts);
+        
+        // Show success message
+        importMessage.textContent = '同步成功！';
+        importMessage.style.display = 'block';
+        setTimeout(() => {
+          importMessage.style.display = 'none';
+          importMessage.textContent = '导入成功！'; // Restore default message text
+        }, 3000);
+      });
+    })
+    .catch(error => {
+      console.error('Error syncing from GitHub:', error);
+      alert(`同步失败: ${error.message}`);
+    })
+    .finally(() => {
+      // Restore the original button state
+      syncButton.innerHTML = '';
+      syncButton.appendChild(createSVGIcon('sync'));
+      syncButton.disabled = false;
+    });
 } 

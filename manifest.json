@@ -9,6 +9,9 @@
     "scripting",
     "clipboardWrite"
   ],
+  "host_permissions": [
+    "https://raw.githubusercontent.com/*"
+  ],
   "action": {
     "default_popup": "popup.html",
     "default_icon": {
